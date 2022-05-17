@@ -2,9 +2,10 @@ from tkinter import *
 from tkinter import ttk
 from tkinter import messagebox
 import tkinter as tk
-import psycopg2
-from psycopg2.errors import UniqueViolation
+
 from datetime import datetime
+import sqlite3 as db
+from db import create_tables, connection
 
 
 
@@ -17,32 +18,15 @@ def validate(new_value):
     except:
         return False    
 
-def connection():
-    conn = psycopg2.connect(
-        database="project2",
-        user='monoluntik',
-        password='1',
-        host='localhost',
-        port='5432'
-    )
-    return conn
+
 
 
 
 def frame3(f1,f2,f3):
-    var = tk.StringVar(f2)
-    def refreshTable():
-        for data in my_tree.get_children():
-            my_tree.delete(data)
-
-        for array in read():
-            my_tree.insert(parent='', index='end', iid=array, text="", values=(array), tag="orow")
-
-        my_tree.tag_configure('orow', background='#EEEEEE', font=('Arial', 12))
-        my_tree.grid(row=8, column=0, columnspan=5, rowspan=11, padx=10, pady=20)
+    create_tables()
 
 
-    my_tree = ttk.Treeview(f1)
+
 
     ph1 = tk.StringVar()
     ph2 = tk.StringVar()
@@ -94,37 +78,23 @@ def frame3(f1,f2,f3):
             try:
                 conn = connection()
                 cursor = conn.cursor()
-                cursor.execute(f"INSERT INTO curs_balance VALUES ('{currency}','{buy}','{sell}','{quantity}') ")
+                cursor.execute(f"INSERT INTO curs_balance VALUES('{currency}','{buy}','{sell}','{quantity}') ")
                 conn.commit()
                 conn.close()
-            except UniqueViolation:
+                refreshTable()
+                messagebox.showinfo('Информация', "Данные успешно сохранены.")
+            except db.IntegrityError:
                 conn = connection()
                 cursor = conn.cursor()
-                cursor.execute("UPDATE curs_balance SET buy='"+
-                buy+"', sell='"+
-                sell+"', quantity='"+
-                quantity+"' where currency='"+currency+"'")
+                cursor.execute(f"""UPDATE curs_balance SET buy='{buy}', sell='{sell}', quantity='{quantity}' where currency='{currency}'""")
                 conn.commit()
                 conn.close()
-            except:
+                refreshTable()
+                messagebox.showinfo('Информация', "Данные успешно  обновлены.")
+            except Exception as E:
+                print(E)
                 messagebox.showinfo("Ошибка", "Поля заполнены неверно")
                 return
-        menu = wF2['menu']
-        menu.delete(0, tk.END)
-    
-        connF22 = connection()
-        cursorF22 = connF22.cursor()
-        cursorF22.execute("select * from curs_balance")
-        resultsF22 = [i for i in cursorF22.fetchall()]
-        currencyF22 = [i[0] for i in resultsF22]
-        if currencyF22 == []:
-            currencyF22 = ['']
-        connF22.commit()
-        connF22.close()
-        if currencyF22 != ['']:
-            for choice in currencyF22:
-                menu.add_command(label=choice, command=tk._setit(var, choice))
-        refreshTable()
         
 
     def delete():
@@ -147,29 +117,18 @@ def frame3(f1,f2,f3):
                     cursor.execute("DELETE FROM curs_balance WHERE currency='"+str(deleteData)+"'")
                     conn.commit()
                     conn.close()        
-                    menu = wF2['menu']
-                    menu.delete(0, tk.END)
-                
-                    connF22 = connection()
-                    cursorF22 = connF22.cursor()
-                    cursorF22.execute("select * from curs_balance")
-                    resultsF22 = [i for i in cursorF22.fetchall()]
-                    currencyF22 = [i[0] for i in resultsF22]
-                    if currencyF22 == []:
-                        currencyF22 = ['']
-                    connF22.commit()
-                    connF22.close()
-                    if currencyF22 != ['']:
-                        for choice in currencyF22:
-                            menu.add_command(label=choice, command=tk._setit(var, choice))
+                    refreshTable()
+                    messagebox.showinfo('Информация', "Данные успешно удалены.")           
+
+
                     
                 except:
                     messagebox.showinfo("Ошибка", "Ошибка удаления")
                     return
 
-                refreshTable()
         except IndexError:
             messagebox.showerror('Ошибка', 'Выберите строку для удоления')
+            
     def select():
         try:
             selected_item = my_tree.selection()[0]
@@ -184,6 +143,17 @@ def frame3(f1,f2,f3):
         except:
             messagebox.showinfo("Ошибка", "Сделайте выбор")
 
+    def refreshTable():
+        for data in my_tree.get_children():
+            my_tree.delete(data)
+
+        for array in read():
+            my_tree.insert(parent='', index='end', iid=array, text="", values=(array), tag="orow")
+
+        my_tree.tag_configure('orow', background='#EEEEEE', font=('Arial', 12))
+        my_tree.grid(row=8, column=0, columnspan=5, rowspan=11, padx=10, pady=20)
+    
+    my_tree = ttk.Treeview(f1)
 
     vcmd = (f1.register(validate), '%P')  
 
@@ -251,14 +221,24 @@ def frame3(f1,f2,f3):
             elif ch2 == 'Продажа':
                 crIndex_side = 2
                 text = resultsF2[crIndex][crIndex_side]
+            ttprice = round(float(text)*float(qt), 2)
             conn = connection()
             cursor = conn.cursor()
             dt = f'{datetime.now()}'.split(' ')
-            cursor.execute(f"INSERT INTO history VALUES ('{ch1}', '{ch2}', '{text}', '{qt}', '{round(float(text)*float(qt), 2)}', '{dt[0]}', '{dt[1].split('.')[0]}') ")
+            cursor.execute(f"INSERT INTO history VALUES('{ch1}', '{ch2}', '{text}', '{qt}', '{ttprice}', '{dt[0]}', '{dt[1].split('.')[0]}')")
+            cursor.execute(f"select * from curs_balance where currency='{ch1}'")
+            quantity = float([i for i in cursor.fetchall()[0]][3])
+            if crIndex_side == 1:
+                quantity += ttprice 
+            elif crIndex_side == 2:
+                quantity -= ttprice
+            cursor.execute("UPDATE curs_balance SET quantity='"+
+            f'{quantity}'+"' where currency='"+ch1+"'")
             conn.commit()
-            conn.close()
+            conn.close()            
             refreshTableF3()
-            totalPriceLabelF2['text'] = round(float(text)*float(qt), 2)
+            refreshTable()
+            totalPriceLabelF2['text'] = ttprice
             messagebox.showinfo('Информация', "Данные успешно сохранены.")
         except ValueError:
             messagebox.showinfo("Ошибка", "Заполните все поля")
@@ -436,7 +416,6 @@ def frame3(f1,f2,f3):
     clearBtnF3.grid(row=4, column=7, columnspan=1)
     deleteBtnF3 = Button(f3, text='Удалить', font=('Arial', 15), bg="#84F894", command=deleteF3)
     deleteBtnF3.grid(row=6, column=7, columnspan=1)
-
 
     refreshTableF3()
     refreshTable()
