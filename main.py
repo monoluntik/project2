@@ -1,6 +1,6 @@
 from tkinter import *
 from tkinter import ttk
-from frame3 import frame3
+from frame import frame
 
 def main():
     root = Tk()
@@ -14,7 +14,8 @@ def main():
     nb.add(f2, text='Сделка')
     nb.add(f1, text='Курс к сому')
     nb.add(f3, text='История сделок')
-    frame3(f1,f2,f3)
+    frame(f1,f2,f3)
+
     root.mainloop()
         
 if __name__ == '__main__':

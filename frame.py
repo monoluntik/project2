@@ -22,7 +22,7 @@ def validate(new_value):
 
 
 
-def frame3(f1,f2,f3):
+def frame(f1,f2,f3):
     create_tables()
 
 
